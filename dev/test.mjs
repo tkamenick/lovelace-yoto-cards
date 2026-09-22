@@ -21,7 +21,7 @@ globalThis.customElements = { define: (name, constructor) => registry.set(name, 
 await import('../yoto-cards.js');
 
 const M = globalThis.__YOTO_CARDS__;
-assert.equal(M.VERSION, '0.1.1');
+assert.equal(M.VERSION, '0.1.2');
 assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening']);
 
 // --- helpers

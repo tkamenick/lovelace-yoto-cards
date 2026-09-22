@@ -14,7 +14,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.1.1';
+  const VERSION = '0.1.2';
   const REPO = 'https://github.com/tkamenick/lovelace-yoto-cards';
 
   const ACCENTS = {
@@ -534,7 +534,7 @@
         : 'no playlist sensors found';
 
       return this._card(`
-        ${eyebrow(`${cfg.name} · ${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'} · synced weekly`, C)}
+        ${eyebrow(`${cfg.name} · ${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`, C)}
         <div style="display:flex; align-items:baseline; gap:12px; margin-top:14px; min-width:0;">
           ${link(cfg.stories, `<div style="font-size:34px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${C.text}; white-space:nowrap;">${esc(total)} stories</div>`)}
           <div style="font-family:${MONO}; font-size:12px; color:${C.amber}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">${esc(sub)}</div>
