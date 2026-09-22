@@ -1,0 +1,38 @@
+# Sections-layout dashboard for a Yoto player and the yoto-sync story sync.
+# The entity ids are the ones yoto-sync publishes; every card takes overrides
+# (see README) if yours differ.
+
+title: Yoto
+path: yoto
+type: sections
+max_columns: 3
+sections:
+  - type: grid
+    cards:
+      - type: heading
+        heading: Player
+      - type: custom:yoto-cards-player
+        player: yoto_player
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Library
+      - type: custom:yoto-cards-library
+        # playlists: omitted, so every sensor with a card_id attribute is listed
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Sync
+      - type: custom:yoto-cards-sync
+        container: binary_sensor.negroni_container_yoto_sync
+
+  - type: grid
+    column_span: 3
+    cards:
+      - type: heading
+        heading: Listening today
+      - type: custom:yoto-cards-listening
+        playback: sensor.yoto_player_playback
+        now_playing: sensor.yoto_player_now_playing

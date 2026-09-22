@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yoto-cards dev harness</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:#131318; padding:32px; display:flex; flex-direction:column; gap:26px; font-family:monospace; }
+  h2 { color:#8b8d96; font:12px monospace; margin:0; letter-spacing:0.1em; text-transform:uppercase; }
+  .theme { display:flex; flex-direction:column; gap:20px; }
+  .row { display:flex; gap:18px; align-items:stretch; flex-wrap:wrap; }
+  .col { width:340px; height:440px; display:flex; flex-direction:column; gap:8px; }
+  .col > :last-child { flex:1; min-height:0; }
+  .col.wide { width:100%; max-width:1056px; height:auto; }
+  .col.wide > :last-child { flex:none; height:250px; }
+  .hdg { font:500 16px/1.3 system-ui,-apple-system,sans-serif; color:var(--primary-text-color,#e1e1e1); padding:0 4px; }
+  #dark {
+    --ha-card-background:#1c1c1c;
+    --card-background-color:#1c1c1c;
+    --primary-text-color:#e1e1e1;
+    --secondary-text-color:#9b9b9b;
+    --disabled-text-color:#64646b;
+    --divider-color:rgba(225,225,225,0.12);
+    --ha-card-border-radius:12px;
+  }
+  #light-wrap { background:#f2f4f7; padding:24px; border-radius:14px; }
+  #light {
+    --ha-card-background:#ffffff;
+    --card-background-color:#ffffff;
+    --primary-text-color:#212121;
+    --secondary-text-color:#727272;
+    --disabled-text-color:#a2a2a8;
+    --divider-color:rgba(0,0,0,0.12);
+    --ha-card-border-radius:12px;
+  }
+</style>
+<script src="../yoto-cards.js"></script>
+<script>
+customElements.define('ha-card', class extends HTMLElement {
+  connectedCallback() {
+    this.style.background = 'var(--ha-card-background, #1c1c1c)';
+    this.style.borderRadius = 'var(--ha-card-border-radius, 12px)';
+    this.style.border = '1px solid var(--divider-color, transparent)';
+    this.style.overflow = 'hidden';
+  }
+});
+</script>
+</head>
+<body>
+<div class="theme" id="dark-theme">
+  <h2>HA default dark theme</h2>
+  <div class="row" id="dark"></div>
+</div>
+<div id="light-wrap">
+  <div class="theme" id="light-theme">
+    <h2>HA default light theme</h2>
+    <div class="row" id="light"></div>
+  </div>
+</div>
+<script>
+const iso = (secondsAgo) => new Date(Date.now() - secondsAgo * 1000).toISOString();
+const S = (state, attributes = {}, secondsAgo = 12) => ({ state: String(state), attributes, last_updated: iso(secondsAgo), last_changed: iso(secondsAgo) });
+
+function makeStates(scenario) {
+  const playing = scenario === 'playing';
+  const states = {
+    'sensor.yoto_player_playback': S(scenario === 'nocard' ? 'stopped' : scenario === 'paused' ? 'paused' : 'playing', { friendly_name: 'Yoto Player Playback' }),
+    'sensor.yoto_player_now_playing': S(scenario === 'paused' ? 'Thomas and Bertie' : 'Queens'),
+    'sensor.yoto_player_track': S(scenario === 'paused' ? 'Thomas and Bertie' : 'Queens (read by Helena Bonham Carter)'),
+    'sensor.yoto_player_chapter': S(scenario === 'paused' ? 1 : 16),
+    'sensor.yoto_player_position': S(scenario === 'paused' ? 201 : 139),
+    'sensor.yoto_player_track_length': S(scenario === 'paused' ? 337 : 581),
+    'sensor.yoto_player_battery': S(scenario === 'nocard' ? 36 : scenario === 'paused' ? 48 : 100),
+    'binary_sensor.yoto_player_charging': S(playing ? 'on' : 'off'),
+    'sensor.yoto_player_volume': S(scenario === 'paused' ? 31 : 64),
+    'binary_sensor.yoto_player_headphones': S('off'),
+    'binary_sensor.yoto_player_bluetooth_headphones': S(scenario === 'paused' ? 'on' : 'off'),
+    'sensor.yoto_player_card': S(scenario === 'nocard' ? 'none' : scenario === 'paused' ? '930JU' : '1mvb1'),
+    'binary_sensor.yoto_player_card_inserted': S(scenario === 'nocard' ? 'off' : 'on'),
+    'binary_sensor.yoto_player_day_mode': S(scenario === 'nocard' ? 'on' : 'off'),
+    'binary_sensor.yoto_player_sleep_timer': S(scenario === 'paused' ? 'on' : 'off'),
+    'sensor.yoto_player_firmware': S('v2.23.4'),
+    'binary_sensor.yoto_sync_problem': scenario === 'failed'
+      ? S('on', { reason: 'Hey Duggee Read-Alongs: TimeoutExpired: the YouTube listing took over 300 s', status: 'failed' }, 7200)
+      : S('off', { reason: '', status: 'ok' }, 7200),
+    'sensor.yoto_sync_status': S(scenario === 'failed' ? 'Hey Duggee Read-Alongs: TimeoutExpired' : 'OK: 37 stories on 3 playlists, nothing new', {}, 7200),
+    'sensor.yoto_sync_last_run': S(iso(7200)),
+    'sensor.yoto_sync_next_run': S(new Date(Date.now() + (6 * 24 + 22) * 3600000).toISOString()),
+    'sensor.yoto_sync_last_added': S('Cricket (read by Bindi Irwin) → Bluey Book Reads', { when: iso(86400 * 1.5), count: 1, playlist: 'Bluey Book Reads', title: 'Cricket (read by Bindi Irwin)' }),
+    'sensor.yoto_sync_stories': S(37),
+    'binary_sensor.negroni_container_yoto_sync': S('on', {}, 86400 * 8),
+    'sensor.yoto_sync_bluey_book_reads': S(22, { title: 'Bluey Book Reads', minutes: 136, mb: 71.7, card_id: '1mvb1', known: 22, missing: [] }),
+    'sensor.yoto_sync_hey_duggee_read_alongs': S(7, { title: 'Hey Duggee Read-Alongs', minutes: 58, mb: 35.7, card_id: '58Hrl', known: 7, missing: [] }),
+    'sensor.yoto_sync_thomas_friends_80th_anniversary_storytime': S(8, { title: 'Thomas & Friends 80th Anniversary Storytime', minutes: 51, mb: 28.3, card_id: '930JU', known: 8, missing: [] }),
+  };
+  return states;
+}
+
+function history() {
+  const now = Date.now() / 1000;
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const t = (h) => midnight.getTime() / 1000 + h * 3600;
+  const rows = [{ s: 'stopped', lu: t(-24) }];
+  for (const [a, b] of [[-17, -16.4], [-11.5, -11.1], [-4.5, -4.2], [7.25, 7.88], [12.1, 12.77], [19.5, 19.85]]) {
+    if (t(a) > now) break;
+    rows.push({ s: 'playing', lu: t(a) }, { s: 'stopped', lu: Math.min(t(b), now - 60) });
+  }
+  return rows;
+}
+
+const makeHass = (darkMode, scenario) => ({
+  themes: { darkMode },
+  locale: { language: 'en-US', time_format: '12' },
+  states: makeStates(scenario),
+  callWS: async (message) => {
+    if (message.type !== 'history/history_during_period') throw new Error(`unsupported harness request: ${message.type}`);
+    return Object.fromEntries(message.entity_ids.map((id) => [id, history()]));
+  },
+});
+
+function mount(rowId, darkMode, title, type, config, scenario, cls = '') {
+  const col = document.createElement('div');
+  col.className = `col ${cls}`;
+  const hdg = document.createElement('div');
+  hdg.className = 'hdg';
+  hdg.textContent = title;
+  const card = document.createElement(type);
+  card.setConfig(config);
+  card.hass = makeHass(darkMode, scenario);
+  col.append(hdg, card);
+  document.getElementById(rowId).appendChild(col);
+}
+
+for (const [rowId, darkMode] of [['dark', true], ['light', false]]) {
+  mount(rowId, darkMode, 'Player', 'yoto-cards-player', {}, 'playing');
+  mount(rowId, darkMode, 'Library', 'yoto-cards-library', {}, 'playing');
+  mount(rowId, darkMode, 'Sync', 'yoto-cards-sync', {}, 'playing');
+  mount(rowId, darkMode, 'Listening today', 'yoto-cards-listening', {}, 'playing', 'wide');
+  if (darkMode) {
+    mount(rowId, darkMode, 'Player · no card', 'yoto-cards-player', {}, 'nocard');
+    mount(rowId, darkMode, 'Player · paused, night mode', 'yoto-cards-player', {}, 'paused');
+    mount(rowId, darkMode, 'Sync · failed', 'yoto-cards-sync', {}, 'failed');
+  }
+}
+</script>
+</body>
+</html>
