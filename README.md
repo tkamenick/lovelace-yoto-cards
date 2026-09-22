@@ -29,7 +29,7 @@ publishes over MQTT discovery:
 
 - **Yoto Player** device from the `yoto-mqtt` bridge: `sensor.yoto_player_playback`,
   `_now_playing`, `_track`, `_chapter`, `_position`, `_track_length`, `_battery`, `_volume`,
-  `_card`, `_firmware` and `binary_sensor.yoto_player_charging`, `_headphones`,
+  `_card` and `binary_sensor.yoto_player_charging`, `_headphones`,
   `_bluetooth_headphones`, `_card_inserted`, `_day_mode`, `_sleep_timer`.
 - **Yoto sync** device from `status.py`: `binary_sensor.yoto_sync_problem` (attributes
   `reason`, `status`), `sensor.yoto_sync_status`, `_last_run`, `_next_run`, `_last_added`,
@@ -65,7 +65,7 @@ playlists:                   # optional; default: every sensor with a card_id at
 
 The keys `entities` accepts: `playback`, `now_playing`, `track`, `chapter`, `position`,
 `track_length`, `battery`, `charging`, `volume`, `headphones`, `bluetooth`, `card`,
-`card_inserted`, `day_mode`, `sleep_timer`, `firmware`. The playlist sensors are used to turn
+`card_inserted`, `day_mode`, `sleep_timer`. The playlist sensors are used to turn
 a card id into a playlist name and "chapter 16 of 22".
 
 ### Library

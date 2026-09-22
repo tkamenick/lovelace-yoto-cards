@@ -14,7 +14,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
   const REPO = 'https://github.com/tkamenick/lovelace-yoto-cards';
 
   const ACCENTS = {
@@ -290,7 +290,8 @@
     }
 
     getGridOptions() {
-      return { columns: 12, rows: 6, min_columns: 6, min_rows: 4 };
+      // 7 rows ≈ 440 px in a sections view: the sync card's four rows need it, and the three sit level
+      return { columns: 12, rows: 7, min_columns: 6, min_rows: 5 };
     }
 
     static getStubConfig() {
@@ -315,7 +316,6 @@
     card_inserted: 'binary_sensor.{p}_card_inserted',
     day_mode: 'binary_sensor.{p}_day_mode',
     sleep_timer: 'binary_sensor.{p}_sleep_timer',
-    firmware: 'sensor.{p}_firmware',
   };
 
   /** "Queens (read by Helena Bonham Carter)" -> ["Queens", "read by Helena Bonham Carter"] */
@@ -397,9 +397,8 @@
       const total = (playing || paused) && length > 0 ? `of ${clock(length)}` : '';
 
       const day = onOff(e.day_mode);
-      const fw = e.firmware.ok ? `fw ${e.firmware.state}` : '';
       const name = (this._config.name || (e.playback.attrs.friendly_name || 'Yoto').replace(/\s*playback$/i, '')).toLowerCase();
-      const eyebrowText = [name, day === null ? '' : day ? 'day mode' : 'night mode', fw].filter(Boolean).join(' · ');
+      const eyebrowText = [name, day === null ? '' : day ? 'day mode' : 'night mode'].filter(Boolean).join(' · ');
 
       const battery = finite(e.battery.state);
       const charging = onOff(e.charging);
@@ -561,7 +560,7 @@
         </div>
         <div style="height:18px;"></div>
         ${footer(
-          esc(`cap ${cfg.cap_stories} stories · ${cfg.cap_mb} MB`),
+          esc(`cap ${cfg.cap_stories} · ${cfg.cap_mb} MB`),
           nextRun ? `next check ${fmtShort(nextRun, hass)}` : '',
           C,
           C.amber

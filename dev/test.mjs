@@ -21,7 +21,7 @@ globalThis.customElements = { define: (name, constructor) => registry.set(name, 
 await import('../yoto-cards.js');
 
 const M = globalThis.__YOTO_CARDS__;
-assert.equal(M.VERSION, '0.1.0');
+assert.equal(M.VERSION, '0.1.1');
 assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening']);
 
 // --- helpers
@@ -98,7 +98,7 @@ const make = (type, config) => {
 
 const player = make('yoto-cards-player', { player: 'yoto_player' });
 let html = player.shadowRoot.innerHTML;
-for (const needle of ['Queens', 'read by Helena Bonham Carter', 'Bluey Book Reads · chapter 16 of 22', '2:19', 'of 9:41', 'yoto player · night mode · fw v2.23.4', 'charging', 'card 1mvb1', '>playing<']) {
+for (const needle of ['Queens', 'read by Helena Bonham Carter', 'Bluey Book Reads · chapter 16 of 22', '2:19', 'of 9:41', 'yoto player · night mode', 'charging', 'card 1mvb1', '>playing<']) {
   assert.ok(html.includes(needle), `player card lacks "${needle}"`);
 }
 assert.ok(!html.includes('yoto-cards error'), html.slice(0, 300));
@@ -119,7 +119,7 @@ assert.ok(player.shadowRoot.innerHTML.includes('Offline'), 'offline state');
 
 const library = make('yoto-cards-library', {});
 html = library.shadowRoot.innerHTML;
-for (const needle of ['37 stories', '4 h 5 m · 3 cards', 'Bluey Book Reads', '22 stories', '136 min · 72 MB · 14%', 'Thomas &amp; Friends', 'next check', 'cap 100 stories · 500 MB']) {
+for (const needle of ['37 stories', '4 h 5 m · 3 cards', 'Bluey Book Reads', '22 stories', '136 min · 72 MB · 14%', 'Thomas &amp; Friends', 'next check', 'cap 100 · 500 MB']) {
   assert.ok(html.includes(needle), `library card lacks "${needle}"`);
 }
 
