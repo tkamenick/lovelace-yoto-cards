@@ -21,7 +21,7 @@ globalThis.customElements = { define: (name, constructor) => registry.set(name, 
 await import('../yoto-cards.js');
 
 const M = globalThis.__YOTO_CARDS__;
-assert.equal(M.VERSION, '0.1.2');
+assert.equal(M.VERSION, '0.2.0');
 assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening']);
 
 // --- helpers
@@ -98,7 +98,13 @@ const make = (type, config) => {
 
 const player = make('yoto-cards-player', { player: 'yoto_player' });
 let html = player.shadowRoot.innerHTML;
-for (const needle of ['Queens', 'read by Helena Bonham Carter', 'Bluey Book Reads · chapter 16 of 22', '2:19', 'of 9:41', 'yoto player · night mode', 'charging', 'card 1mvb1', '>playing<']) {
+for (const needle of ['Queens', 'read by Helena Bonham Carter', '>Bluey Book Reads<', '2:19', 'of 9:41', 'battery 100%', 'charging', '>playing<']) {
+  assert.ok(html.includes(needle), `player card lacks "${needle}"`);
+}
+for (const gone of ['chapter 16', 'night mode', 'card 1mvb1', 'sleep timer', 'headphones', 'updated']) {
+  assert.ok(!html.includes(gone), `player card still shows "${gone}"`);
+}
+for (const needle of []) {
   assert.ok(html.includes(needle), `player card lacks "${needle}"`);
 }
 assert.ok(!html.includes('yoto-cards error'), html.slice(0, 300));
@@ -110,7 +116,11 @@ const stopped = { ...hass, states: { ...hass.states,
   'binary_sensor.yoto_player_card_inserted': S('off') } };
 player.hass = stopped;
 html = player.shadowRoot.innerHTML;
-assert.ok(html.includes('No card') && html.includes('slot empty') && html.includes('>stopped<'), 'no-card state');
+assert.ok(html.includes('No card') && html.includes('put a card in') && html.includes('>stopped<'), 'no-card state');
+// tags only when on
+const tagged = { ...hass, states: { ...hass.states, 'binary_sensor.yoto_player_sleep_timer': S('on'), 'binary_sensor.yoto_player_bluetooth_headphones': S('on') } };
+player.hass = tagged;
+assert.ok(player.shadowRoot.innerHTML.includes('sleep timer') && player.shadowRoot.innerHTML.includes('bluetooth'), 'tags when on');
 
 // bridge down: entities unavailable
 const offline = { ...hass, states: Object.fromEntries(Object.entries(hass.states).map(([k, v]) => [k, k.includes('yoto_player') ? S('unavailable') : v])) };
@@ -119,21 +129,31 @@ assert.ok(player.shadowRoot.innerHTML.includes('Offline'), 'offline state');
 
 const library = make('yoto-cards-library', {});
 html = library.shadowRoot.innerHTML;
-for (const needle of ['37 stories', '4 h 5 m · 3 cards', 'Bluey Book Reads', '22 stories', '136 min · 72 MB · 14%', 'Thomas &amp; Friends', 'next check', 'cap 100 · 500 MB']) {
+for (const needle of ['37 stories', '4 h 5 m', 'Bluey Book Reads', '22 stories', 'Thomas &amp; Friends', 'width:14.3%']) {
   assert.ok(html.includes(needle), `library card lacks "${needle}"`);
+}
+for (const gone of ['136 min', '72 MB', 'next check', 'cap ', 'make your own']) {
+  assert.ok(!html.includes(gone), `library card still shows "${gone}"`);
 }
 
 const sync = make('yoto-cards-sync', {});
 html = sync.shadowRoot.innerHTML;
-for (const needle of ['All good', '>ok<', '37 stories · nothing new', 'last run', 'next run', 'in 6 d', 'last added', 'nothing yet', 'container', '>up<', '3 playlists watched']) {
+for (const needle of ['All good', '>ok<', 'last run', 'next Mon', 'last added', 'nothing yet']) {
   assert.ok(html.includes(needle), `sync card lacks "${needle}"`);
 }
+for (const gone of ['container', 'playlists watched', 'updated', '37 stories']) {
+  assert.ok(!html.includes(gone), `sync card still shows "${gone}"`);
+}
+const down = { ...hass, states: { ...hass.states, 'binary_sensor.negroni_container_yoto_sync': S('off') } };
+sync.hass = down;
+assert.ok(sync.shadowRoot.innerHTML.includes('Needs attention') && sync.shadowRoot.innerHTML.includes('container is not running'), 'container down state');
+sync.hass = hass;
 const failed = { ...hass, states: { ...hass.states,
   'binary_sensor.yoto_sync_problem': S('on', { reason: 'Hey Duggee Read-Alongs: TimeoutExpired: yt-dlp', status: 'failed' }),
   'sensor.yoto_sync_status': S('Hey Duggee Read-Alongs: TimeoutExpired: yt-dlp') } };
 sync.hass = failed;
 html = sync.shadowRoot.innerHTML;
-assert.ok(html.includes('Needs attention') && html.includes('TimeoutExpired') && html.includes('· failed'), 'failed state');
+assert.ok(html.includes('Needs attention') && html.includes('TimeoutExpired') && html.includes('>failed<'), 'failed state');
 
 // listening: recorder rows around "now"
 const nowSec = Date.now() / 1000;
@@ -143,7 +163,10 @@ listening.hass = { ...hass, callWS: async () => ({ 'sensor.yoto_player_playback'
   { s: 'stopped', lu: nowSec - 40000 }, { s: 'playing', lu: nowSec - 3000 }, { s: 'stopped', lu: nowSec - 600 } ] }) };
 await new Promise((r) => setTimeout(r, 10));
 html = listening.shadowRoot.innerHTML;
-assert.ok(html.includes('40 m') && html.includes('1 session') && html.includes('longest 40 m'), html.slice(0, 400));
+assert.ok(html.includes('40 m') && html.includes('yesterday'), html.slice(0, 400));
+for (const gone of ['session', 'longest', '24h']) {
+  assert.ok(!html.includes(gone), `listening card still shows "${gone}"`);
+}
 assert.ok(!html.includes('yoto-cards error'));
 
 console.log('yoto-cards: all checks passed');

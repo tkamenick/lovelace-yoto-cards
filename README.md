@@ -14,13 +14,14 @@ The cards adapt their accents for light themes:
 
 | Card | Type | What it answers |
 |---|---|---|
-| **Player** | `custom:yoto-cards-player` | What is playing, how far through it, from which card; battery, volume, headphones, sleep timer, night mode |
+| **Player** | `custom:yoto-cards-player` | What is playing, how far through it, from which playlist; battery, and a tag when the sleep timer or headphones are on |
 | **Library** | `custom:yoto-cards-library` | Which playlists the sync maintains, how many stories each holds, and how close each is to Yoto's 100-track / 500 MB card cap |
-| **Sync** | `custom:yoto-cards-sync` | Did the weekly sync run, did it fail and why, what did it add last, when is the next run |
-| **Listening** | `custom:yoto-cards-listening` | When the player was playing today, for how long, and how that compares to yesterday (recorder-backed) |
+| **Sync** | `custom:yoto-cards-sync` | Is the weekly sync healthy (with the reason when not), when it ran and runs next, and the last story it added |
+| **Listening** | `custom:yoto-cards-listening` | When the player was playing today and for how long, with yesterday for scale (recorder-backed) |
 
-All four are dependency-free and bundled in one file. Clicking a reading opens Home Assistant's
-normal more-info dialog.
+All four are dependency-free and bundled in one file. Each card shows one thing large and one
+thing small; the rest is a click away, since clicking a reading opens Home Assistant's normal
+more-info dialog.
 
 ## What they read
 
@@ -28,9 +29,9 @@ The cards are built for the entities that [yoto-sync](https://github.com/tkameni
 publishes over MQTT discovery:
 
 - **Yoto Player** device from the `yoto-mqtt` bridge: `sensor.yoto_player_playback`,
-  `_now_playing`, `_track`, `_chapter`, `_position`, `_track_length`, `_battery`, `_volume`,
-  `_card` and `binary_sensor.yoto_player_charging`, `_headphones`,
-  `_bluetooth_headphones`, `_card_inserted`, `_day_mode`, `_sleep_timer`.
+  `_now_playing`, `_track`, `_position`, `_track_length`, `_battery`, `_card` and
+  `binary_sensor.yoto_player_charging`, `_headphones`, `_bluetooth_headphones`,
+  `_card_inserted`, `_sleep_timer`.
 - **Yoto sync** device from `status.py`: `binary_sensor.yoto_sync_problem` (attributes
   `reason`, `status`), `sensor.yoto_sync_status`, `_last_run`, `_next_run`, `_last_added`,
   `_stories`, and one sensor per playlist whose attributes carry `title`, `minutes`, `mb`,
@@ -63,10 +64,9 @@ playlists:                   # optional; default: every sensor with a card_id at
   - sensor.yoto_sync_bluey_book_reads
 ```
 
-The keys `entities` accepts: `playback`, `now_playing`, `track`, `chapter`, `position`,
-`track_length`, `battery`, `charging`, `volume`, `headphones`, `bluetooth`, `card`,
-`card_inserted`, `day_mode`, `sleep_timer`. The playlist sensors are used to turn
-a card id into a playlist name and "chapter 16 of 22".
+The keys `entities` accepts: `playback`, `now_playing`, `track`, `position`, `track_length`,
+`battery`, `charging`, `headphones`, `bluetooth`, `card`, `card_inserted`, `sleep_timer`. The
+playlist sensors turn a card id into the playlist name shown above the story.
 
 ### Library
 
@@ -77,7 +77,6 @@ playlists:                   # optional; default: every sensor with a card_id at
     name: Bluey              # optional
     color: blue              # optional: blue, amber, green, pink, red
 stories: sensor.yoto_sync_stories
-next_run: sensor.yoto_sync_next_run
 cap_mb: 500                  # Yoto's per-card limits, for the fill bars
 cap_stories: 100
 ```
@@ -93,9 +92,8 @@ status: sensor.yoto_sync_status
 last_run: sensor.yoto_sync_last_run
 next_run: sensor.yoto_sync_next_run
 last_added: sensor.yoto_sync_last_added
-stories: sensor.yoto_sync_stories
-container: binary_sensor.negroni_container_yoto_sync   # optional; omit to drop the row
-name: weekly · yoto-sync
+container: binary_sensor.negroni_container_yoto_sync   # optional; a stopped container turns the card red
+name: weekly sync
 ```
 
 ### Listening

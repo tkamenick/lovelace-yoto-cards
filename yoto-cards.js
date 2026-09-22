@@ -14,7 +14,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.1.2';
+  const VERSION = '0.2.0';
   const REPO = 'https://github.com/tkamenick/lovelace-yoto-cards';
 
   const ACCENTS = {
@@ -290,8 +290,8 @@
     }
 
     getGridOptions() {
-      // 7 rows ≈ 440 px in a sections view: the sync card's four rows need it, and the three sit level
-      return { columns: 12, rows: 7, min_columns: 6, min_rows: 5 };
+      // 5 rows ≈ 310 px in a sections view: enough for the ring, three playlist rows, or the sync block
+      return { columns: 12, rows: 5, min_columns: 6, min_rows: 4 };
     }
 
     static getStubConfig() {
@@ -304,17 +304,14 @@
     playback: 'sensor.{p}_playback',
     now_playing: 'sensor.{p}_now_playing',
     track: 'sensor.{p}_track',
-    chapter: 'sensor.{p}_chapter',
     position: 'sensor.{p}_position',
     track_length: 'sensor.{p}_track_length',
     battery: 'sensor.{p}_battery',
     charging: 'binary_sensor.{p}_charging',
-    volume: 'sensor.{p}_volume',
     headphones: 'binary_sensor.{p}_headphones',
     bluetooth: 'binary_sensor.{p}_bluetooth_headphones',
     card: 'sensor.{p}_card',
     card_inserted: 'binary_sensor.{p}_card_inserted',
-    day_mode: 'binary_sensor.{p}_day_mode',
     sleep_timer: 'binary_sensor.{p}_sleep_timer',
   };
 
@@ -354,73 +351,52 @@
       const hass = this._hass;
       const ids = this._config.ids;
       const e = Object.fromEntries(Object.entries(ids).map(([key, id]) => [key, entity(hass, id)]));
-      const now = Date.now();
 
       const playback = e.playback.ok ? e.playback.state : e.playback.present ? 'offline' : 'missing';
       const playing = playback === 'playing';
       const paused = playback === 'paused';
+      const active = playing || paused;
       const tone = playing ? C.amber : paused ? C.blue : C.dim;
       const inserted = onOff(e.card_inserted);
       const cardId = e.card.ok && e.card.state !== 'none' ? e.card.state : null;
-      const noCard = !playing && !paused && !cardId && inserted === false;
+      const noCard = !active && !cardId && inserted === false;
 
       const playlists = playlistSensors(hass, this._config.playlists);
       const playlist = cardId ? playlists.find((p) => p.cardId === cardId) : null;
       const chapter = e.now_playing.ok ? e.now_playing.state : '';
-      const [title0, narrator0] = splitTrack(e.track.ok ? e.track.state : '', chapter);
-      let title = title0;
-      let narrator = narrator0;
-      let where = '';
+      let [title, narrator] = splitTrack(e.track.ok ? e.track.state : '', chapter);
+      let context = playlist ? playlist.title : cardId ? 'yoto card' : '';
       if (playback === 'missing') {
         title = 'No player';
         narrator = `no ${ids.playback}`;
+        context = '';
       } else if (playback === 'offline') {
         title = 'Offline';
         narrator = 'the bridge is not reporting';
+        context = '';
       } else if (noCard || !title) {
         title = 'No card';
-        narrator = 'slot empty';
-        where = 'put a card in to play';
-      } else {
-        if (!playing && !paused) narrator = narrator ? `stopped · ${narrator}` : 'stopped';
-        const chapterNo = finite(e.chapter.state);
-        const of = playlist && Number.isFinite(playlist.stories) ? ` of ${playlist.stories}` : '';
-        const chapterText = Number.isFinite(chapterNo) ? `chapter ${chapterNo}${of}` : '';
-        where = [playlist ? playlist.title : cardId ? `card ${cardId}` : '', chapterText].filter(Boolean).join(' · ');
+        narrator = 'put a card in to play';
+        context = '';
       }
-      const muted = !playing && !paused;
+      const muted = !active;
 
       const position = finite(e.position.state);
       const length = finite(e.track_length.state);
-      const progress = playing || paused ? (length > 0 ? clamp(position / length, 0, 1) : 0) : 0;
-      const elapsed = (playing || paused) && Number.isFinite(position) ? clock(position) : '—';
-      const total = (playing || paused) && length > 0 ? `of ${clock(length)}` : '';
-
-      const day = onOff(e.day_mode);
-      const name = (this._config.name || (e.playback.attrs.friendly_name || 'Yoto').replace(/\s*playback$/i, '')).toLowerCase();
-      const eyebrowText = [name, day === null ? '' : day ? 'day mode' : 'night mode'].filter(Boolean).join(' · ');
+      const progress = active && length > 0 ? clamp(position / length, 0, 1) : 0;
+      const elapsed = active && Number.isFinite(position) ? clock(position) : '—';
+      const total = active && length > 0 ? `of ${clock(length)}` : '';
 
       const battery = finite(e.battery.state);
       const charging = onOff(e.charging);
-      const bt = onOff(e.bluetooth);
-      const wired = onOff(e.headphones);
-      const sleep = onOff(e.sleep_timer);
-      const volume = finite(e.volume.state);
-      const facts = [
-        {
-          id: ids.battery, label: 'battery',
-          value: Number.isFinite(battery) ? `${Math.round(battery)}%` : '—',
-          color: Number.isFinite(battery) && battery < 20 && !charging ? C.red : C.text,
-          note: charging ? 'charging' : Number.isFinite(battery) && battery < 20 ? 'low' : '',
-          noteColor: charging ? C.amber : C.red,
-        },
-        { id: ids.volume, label: 'volume', value: Number.isFinite(volume) ? `${Math.round(volume)}%` : '—', color: C.text,
-          note: Number.isFinite(volume) && volume === 0 ? 'muted' : '', noteColor: C.dim },
-        { id: bt ? ids.bluetooth : ids.headphones, label: 'headphones',
-          value: bt ? 'bluetooth' : wired ? 'wired' : 'none', color: bt ? C.blue : C.text, note: '', noteColor: C.dim },
-        { id: ids.sleep_timer, label: 'sleep', value: sleep ? 'on' : sleep === null ? '—' : 'off',
-          color: sleep ? C.amber : C.text, note: '', noteColor: C.dim },
-      ];
+      const low = Number.isFinite(battery) && battery < 20 && !charging;
+      const batteryText = Number.isFinite(battery) ? `battery ${Math.round(battery)}%` : '';
+      const batteryNote = charging ? 'charging' : low ? 'low' : '';
+      // only what is actually on: most of the time this row is just the battery
+      const tags = [];
+      if (onOff(e.sleep_timer)) tags.push(['sleep timer', C.amber, ids.sleep_timer]);
+      if (onOff(e.bluetooth)) tags.push(['bluetooth', C.blue, ids.bluetooth]);
+      else if (onOff(e.headphones)) tags.push(['headphones', C.blue, ids.headphones]);
 
       const ring = 132;
       const half = ring / 2;
@@ -428,12 +404,9 @@
       const circ = 2 * Math.PI * radius;
       const dash = `${(progress * circ).toFixed(1)} ${circ.toFixed(1)}`;
       const titleSize = title.length > 18 ? 24 : 30;
-      const updated = newest(Object.values(e));
-      const cardLabel = cardId ? `card ${cardId}` : noCard ? 'no card' : e.card.ok ? 'no card' : '';
-      const cardName = playlist && cardId ? ` · ${playlist.title}` : '';
 
       return this._card(`
-        ${topRow(eyebrow(eyebrowText, C), pill(playback, tone))}
+        ${topRow(eyebrow(context, C), pill(playback, tone))}
         <div style="display:flex; gap:22px; align-items:center; margin-top:22px;">
           <div style="position:relative; width:${ring}px; height:${ring}px; flex-shrink:0;">
             <svg width="${ring}" height="${ring}" style="display:block;" aria-hidden="true">
@@ -445,29 +418,18 @@
               <div style="font-family:${MONO}; font-size:11px; color:${C.dim};">${esc(total)}</div>
             </div>
           </div>
-          <div style="flex-grow:1; min-width:0; display:flex; flex-direction:column; gap:7px;">
+          <div style="flex-grow:1; min-width:0; display:flex; flex-direction:column; gap:8px;">
             ${link(ids.now_playing, `<div style="font-size:${titleSize}px; font-weight:600; line-height:1.08; letter-spacing:-0.015em; color:${muted ? C.dim : C.text};">${esc(title)}</div>`, 'display:block;')}
             <div style="font-family:${MONO}; font-size:13px; line-height:1.35; color:${C.ink}; overflow:hidden; text-overflow:ellipsis;">${esc(narrator)}</div>
-            <div style="font-family:${MONO}; font-size:12px; line-height:1.35; color:${C.dim}; overflow:hidden; text-overflow:ellipsis;">${esc(where)}</div>
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; margin-top:24px; padding-top:16px; border-top:1px solid ${C.divider};">
-          ${facts
-            .map(
-              (f) => `${link(f.id, `<div style="display:flex; flex-direction:column; gap:4px; min-width:0;">
-                <div style="font-family:${MONO}; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:${C.dim}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(f.label)}</div>
-                <div style="font-size:16px; font-weight:500; color:${f.color}; white-space:nowrap;">${esc(f.value)}</div>
-                <div style="font-family:${MONO}; font-size:11px; color:${f.noteColor}; white-space:nowrap; min-height:14px;">${esc(f.note)}</div>
-              </div>`, 'display:block; min-width:0;')}`
-            )
-            .join('')}
+        <div style="flex-grow:1;"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding-top:14px; border-top:1px solid ${C.divider}; font-family:${MONO}; font-size:12px; color:${C.dim};">
+          ${link(ids.battery, `<span>${esc(batteryText)}</span>${batteryNote ? `<span style="color:${charging ? C.amber : C.red};"> · ${esc(batteryNote)}</span>` : ''}`)}
+          <div style="display:flex; gap:6px;">${tags
+            .map(([t, color, id]) => link(id, `<span style="display:inline-block; color:${color}; border:1px solid ${color}; border-radius:999px; padding:2px 8px; font-size:10px; letter-spacing:0.1em; text-transform:uppercase;">${esc(t)}</span>`))
+            .join('')}</div>
         </div>
-        <div style="height:18px;"></div>
-        ${footer(
-          `<span style="color:${cardId ? C.amber : C.dim};">${esc(cardLabel)}</span>${esc(cardName)}`,
-          updated ? `updated ${ago(updated, now)}` : '',
-          C
-        )}
       `);
     }
   }
@@ -479,7 +441,6 @@
     static defaults = {
       playlists: null,
       stories: 'sensor.yoto_sync_stories',
-      next_run: 'sensor.yoto_sync_next_run',
       cap_mb: 500,
       cap_stories: 100,
       name: 'make your own',
@@ -491,7 +452,7 @@
       const listed = Array.isArray(this._config.playlists)
         ? this._config.playlists.map((p) => (typeof p === 'string' ? p : p?.entity)).filter(Boolean)
         : Object.keys(this._hass?.states || {}).filter((id) => id.startsWith('sensor.yoto_sync_'));
-      return [this._config.stories, this._config.next_run, ...listed].filter(Boolean);
+      return [this._config.stories, ...listed].filter(Boolean);
     }
 
     _template() {
@@ -504,67 +465,45 @@
         ? finite(storiesEntity.state)
         : playlists.reduce((n, p) => n + (Number.isFinite(p.stories) ? p.stories : 0), 0);
       const minutes = playlists.reduce((n, p) => n + (Number.isFinite(p.minutes) ? p.minutes : 0), 0);
-      const nextRun = parseDate(entity(hass, cfg.next_run).state);
 
       const rows = playlists.map((p, i) => {
         const pct = Number.isFinite(p.mb) ? clamp((p.mb / cfg.cap_mb) * 100, 0, 100) : 0;
         const storyPct = Number.isFinite(p.stories) ? (p.stories / cfg.cap_stories) * 100 : 0;
         const worst = Math.max(pct, storyPct);
-        const fill = worst < 60 ? C.green : worst < 80 ? C.amber : C.red;
-        const owed = Number.isFinite(p.known) && Number.isFinite(p.stories) && p.known > p.stories ? p.known - p.stories : 0;
-        const meta = p.ok
-          ? [`${Number.isFinite(p.minutes) ? p.minutes : '—'} min`, `${Number.isFinite(p.mb) ? Math.round(p.mb) : '—'} MB`, `${Math.round(pct)}%`]
-              .join(' · ') + (owed ? ` · ${owed} owed` : '')
-          : 'unavailable';
         return {
           id: p.id,
           name: p.title,
           dot: C[p.tone] || C[TONES[i % TONES.length]],
           stories: p.ok && Number.isFinite(p.stories) ? `${p.stories} ${p.stories === 1 ? 'story' : 'stories'}` : '—',
-          meta,
-          metaColor: owed ? C.amber : C.dim,
-          fill,
+          fill: worst < 60 ? C.green : worst < 80 ? C.amber : C.red,
           width: `${Math.max(1.5, pct).toFixed(1)}%`,
         };
       });
 
       const h = Math.floor(minutes / 60);
-      const sub = playlists.length
-        ? `${h ? `${h} h ` : ''}${minutes % 60} m · ${playlists.length} ${playlists.length === 1 ? 'card' : 'cards'}`
-        : 'no playlist sensors found';
+      const sub = minutes ? `${h ? `${h} h ` : ''}${minutes % 60} m` : playlists.length ? '' : 'no playlist sensors found';
 
       return this._card(`
-        ${eyebrow(`${cfg.name} · ${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`, C)}
-        <div style="display:flex; align-items:baseline; gap:12px; margin-top:14px; min-width:0;">
+        <div style="display:flex; align-items:baseline; gap:12px; min-width:0;">
           ${link(cfg.stories, `<div style="font-size:34px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${C.text}; white-space:nowrap;">${esc(total)} stories</div>`)}
           <div style="font-family:${MONO}; font-size:12px; color:${C.amber}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">${esc(sub)}</div>
         </div>
-        <div style="display:flex; flex-direction:column; margin-top:16px;">
+        <div style="display:flex; flex-direction:column; margin-top:18px;">
           ${rows
             .map(
-              (r) => `${link(r.id, `<div style="display:flex; flex-direction:column; gap:8px; padding:12px 0 13px; border-top:1px solid ${C.divider};">
+              (r) => `${link(r.id, `<div style="display:flex; flex-direction:column; gap:9px; padding:13px 0 14px; border-top:1px solid ${C.divider};">
                 <div style="display:flex; align-items:center; gap:10px;">
                   <div style="width:8px; height:8px; border-radius:999px; background:${r.dot}; flex-shrink:0;"></div>
                   <div style="flex-grow:1; min-width:0; font-size:15px; font-weight:500; color:${C.text}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(r.name)}</div>
                   <div style="font-size:15px; font-weight:500; color:${C.text}; white-space:nowrap;">${esc(r.stories)}</div>
                 </div>
-                <div style="display:flex; align-items:center; gap:12px;">
-                  <div style="flex-grow:1; height:4px; border-radius:2px; background:${C.track}; position:relative; overflow:hidden;">
-                    <div style="position:absolute; left:0; top:0; bottom:0; width:${r.width}; border-radius:2px; background:${r.fill};"></div>
-                  </div>
-                  <div style="font-family:${MONO}; font-size:11px; color:${r.metaColor}; white-space:nowrap;">${esc(r.meta)}</div>
+                <div style="height:4px; border-radius:2px; background:${C.track}; position:relative; overflow:hidden;">
+                  <div style="position:absolute; left:0; top:0; bottom:0; width:${r.width}; border-radius:2px; background:${r.fill};"></div>
                 </div>
               </div>`, 'display:block;')}`
             )
             .join('')}
         </div>
-        <div style="height:18px;"></div>
-        ${footer(
-          esc(`cap ${cfg.cap_stories} · ${cfg.cap_mb} MB`),
-          nextRun ? `next check ${fmtShort(nextRun, hass)}` : '',
-          C,
-          C.amber
-        )}
       `);
     }
   }
@@ -577,16 +516,15 @@
       last_run: 'sensor.yoto_sync_last_run',
       next_run: 'sensor.yoto_sync_next_run',
       last_added: 'sensor.yoto_sync_last_added',
-      stories: 'sensor.yoto_sync_stories',
       container: 'binary_sensor.negroni_container_yoto_sync',
-      name: 'weekly · yoto-sync',
+      name: 'weekly sync',
       load_fonts: true,
     };
     static cardSize = 6;
 
     _entityIds() {
       const cfg = this._config;
-      return [cfg.problem, cfg.status, cfg.last_run, cfg.next_run, cfg.last_added, cfg.stories, cfg.container].filter(Boolean);
+      return [cfg.problem, cfg.status, cfg.last_run, cfg.next_run, cfg.last_added, cfg.container].filter(Boolean);
     }
 
     _template() {
@@ -599,81 +537,37 @@
       const lastRun = parseDate(entity(hass, cfg.last_run).state);
       const nextRun = parseDate(entity(hass, cfg.next_run).state);
       const lastAdded = entity(hass, cfg.last_added);
-      const stories = finite(entity(hass, cfg.stories).state);
       const container = entity(hass, cfg.container);
 
       const runState = problem.attrs.status || (problem.ok ? (onOff(problem) ? 'failed' : 'ok') : '');
       const offline = !status.present && !problem.present;
-      const state = offline ? 'offline' : !problem.ok && !status.ok ? 'unknown' : runState || 'unknown';
-      const tone = { ok: C.green, failed: C.red, running: C.amber }[state] || C.dim;
-      const headline = { ok: 'All good', failed: 'Needs attention', running: 'Running', offline: 'No sensors' }[state] || 'Unknown';
-      const reason = state === 'failed' ? problem.attrs.reason || status.state : '';
-
-      const summary = status.ok ? status.state : '';
-      const tail = summary.includes(', ') ? summary.slice(summary.lastIndexOf(', ') + 2) : '';
-      const aside =
-        state === 'failed'
-          ? ''
-          : state === 'running'
-            ? 'checking sources'
-            : [Number.isFinite(stories) ? `${stories} stories` : '', tail].filter(Boolean).join(' · ');
+      let state = offline ? 'offline' : !problem.ok && !status.ok ? 'unknown' : runState || 'unknown';
+      // a stopped container never runs again, so it is a problem even though the last run was fine
+      if (cfg.container && container.present && onOff(container) === false && state !== 'failed') state = 'down';
+      const tone = { ok: C.green, failed: C.red, down: C.red, running: C.amber }[state] || C.dim;
+      const headline = { ok: 'All good', failed: 'Needs attention', down: 'Needs attention', running: 'Running', offline: 'No sensors' }[state] || 'Unknown';
+      const reason = state === 'failed' ? problem.attrs.reason || status.state : state === 'down' ? 'the sync container is not running' : '';
       const sub = state === 'offline'
         ? `no ${cfg.status}`
-        : lastRun
-          ? `last run ${fmtWhen(lastRun, hass)}${state === 'running' ? ' · running now' : ''}`
-          : summary || 'no run recorded yet';
+        : [lastRun ? `last run ${ago(lastRun, now)}` : 'no run recorded yet', nextRun && state !== 'down' ? `next ${fmtShort(nextRun, hass)}` : '']
+            .filter(Boolean)
+            .join(' · ');
 
+      const added = lastAdded.ok && lastAdded.state !== 'nothing yet' ? lastAdded.state : '';
       const addedWhen = parseDate(lastAdded.attrs.when);
-      const addedCount = finite(lastAdded.attrs.count);
-      const containerUp = onOff(container);
-      const rows = [
-        { id: cfg.last_run, label: 'last run', value: lastRun ? ago(lastRun, now) + (state === 'failed' ? ' · failed' : '') : '—',
-          color: state === 'failed' ? C.red : C.text, note: '' },
-        { id: cfg.next_run, label: 'next run', value: nextRun ? fmtWhen(nextRun, hass) : '—', color: C.text,
-          note: nextRun ? until(nextRun, now) : '' },
-        { id: cfg.last_added, label: 'last added', value: lastAdded.ok ? lastAdded.state : '—', color: C.text,
-          note: addedWhen ? `${fmtWhen(addedWhen, hass)}${Number.isFinite(addedCount) && addedCount > 1 ? ` · ${addedCount} stories` : ''}` : '' },
-      ];
-      if (cfg.container) {
-        rows.push({
-          id: cfg.container, label: 'container',
-          value: containerUp === null ? '—' : containerUp ? 'up' : 'down',
-          color: containerUp === false ? C.red : C.text,
-          note: container.changed && containerUp !== null ? `since ${fmtWhen(container.changed, hass)}` : '',
-        });
-      }
-      const updated = newest([problem, status, lastAdded, container]);
 
       return this._card(`
         ${topRow(eyebrow(cfg.name, C), pill(state, tone))}
-        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-top:14px;">
-          ${link(cfg.status, `<div style="font-size:34px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${C.text}; white-space:nowrap;">${esc(headline)}</div>`)}
-          <div style="font-family:${MONO}; font-size:12px; text-align:right; color:${tone}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">${esc(aside)}</div>
-        </div>
+        ${link(cfg.status, `<div style="font-size:34px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${C.text}; margin-top:14px;">${esc(headline)}</div>`, 'display:block;')}
         <div style="font-family:${MONO}; font-size:12px; line-height:1.4; color:${C.dim}; margin-top:6px;">${esc(sub)}</div>
-        ${reason ? `<div style="font-family:${MONO}; font-size:12px; line-height:1.4; color:${C.red}; margin-top:8px; padding:8px 10px; border:1px solid ${C.red}; border-radius:8px;">${esc(reason)}</div>` : ''}
-        <div style="display:flex; flex-direction:column; margin-top:16px;">
-          ${rows
-            .map(
-              (r) => `${link(r.id, `<div style="display:flex; align-items:baseline; justify-content:space-between; gap:16px; padding:10px 0; border-top:1px solid ${C.divider};">
-                <div style="font-family:${MONO}; font-size:12px; color:${C.dim}; white-space:nowrap;">${esc(r.label)}</div>
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; min-width:0;">
-                  <div style="font-size:15px; font-weight:500; color:${r.color}; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">${esc(r.value)}</div>
-                  ${r.note ? `<div style="font-family:${MONO}; font-size:11px; color:${C.dim}; white-space:nowrap;">${esc(r.note)}</div>` : ''}
-                </div>
-              </div>`, 'display:block;')}`
-            )
-            .join('')}
-        </div>
-        <div style="height:18px;"></div>
-        ${footer(esc(this._sources()), updated ? `updated ${ago(updated, now)}` : '', C)}
+        ${reason ? `<div style="font-family:${MONO}; font-size:12px; line-height:1.4; color:${C.red}; margin-top:12px; padding:8px 10px; border:1px solid ${C.red}; border-radius:8px;">${esc(reason)}</div>` : ''}
+        <div style="flex-grow:1;"></div>
+        ${link(cfg.last_added, `<div style="display:flex; flex-direction:column; gap:4px; padding-top:14px; border-top:1px solid ${C.divider};">
+          <div style="font-family:${MONO}; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:${C.dim};">last added</div>
+          <div style="font-size:15px; font-weight:500; color:${added ? C.text : C.dim}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(added || 'nothing yet')}</div>
+          ${addedWhen ? `<div style="font-family:${MONO}; font-size:11px; color:${C.dim};">${esc(fmtWhen(addedWhen, hass))}</div>` : ''}
+        </div>`, 'display:block;')}
       `);
-    }
-
-    _sources() {
-      const playlists = playlistSensors(this._hass, null);
-      const n = playlists.length;
-      return n ? `${n} ${n === 1 ? 'playlist' : 'playlists'} watched` : '';
     }
   }
 
@@ -703,7 +597,6 @@
     static defaults = {
       playback: 'sensor.yoto_player_playback',
       now_playing: 'sensor.yoto_player_now_playing',
-      name: 'today · 24h',
       refresh_interval: 300,
       load_fonts: true,
     };
@@ -835,37 +728,22 @@
       const yesterdays = all.filter(([a]) => a < todayMs).map(([a, b]) => [a, Math.min(b, todayMs)]);
       const totalToday = sumMs(todays) / 1000;
       const totalYesterday = sumMs(yesterdays) / 1000;
-      const longest = todays.reduce((best, iv) => (!best || iv[1] - iv[0] > best[1] - best[0] ? iv : best), null);
       const live = entity(hass, cfg.playback).state === 'playing';
       const nowPlaying = entity(hass, cfg.now_playing);
-      const lastEnd = todays.length ? new Date(todays[todays.length - 1][1]) : null;
 
       const headline = rows === null ? (this._error ? 'No history' : '…') : totalToday < 60 ? 'Nothing yet' : span(totalToday);
-      const sub = this._error
-        ? this._error
-        : live
-          ? `playing now · ${nowPlaying.ok ? nowPlaying.state : ''}`
-          : lastEnd && nowPlaying.ok
-            ? `listening today · last played ${nowPlaying.state} at ${fmtTime(lastEnd, hass)}`
-            : rows === null
-              ? 'loading the recorder'
-              : 'listening today';
+      const sub = this._error ? this._error : live ? `playing now · ${nowPlaying.ok ? nowPlaying.state : ''}` : rows === null ? 'loading the recorder' : 'today';
       const pct = (ms) => `${((clamp(ms - todayMs, 0, 86400000) / 86400000) * 100).toFixed(2)}%`;
       const segments = todays
         .map(([a, b]) => `<div style="position:absolute; top:10px; height:24px; left:${pct(a)}; width:${Math.max(0.35, ((b - a) / 86400000) * 100).toFixed(2)}%; border-radius:4px; background:${C.amber};"></div>`)
         .join('');
       const nowLeft = pct(nowMs);
-      const sessions = todays.length;
-      const footLeft = longest
-        ? `longest ${span((longest[1] - longest[0]) / 1000)} · ${fmtTime(new Date(longest[0]), hass)} – ${fmtTime(new Date(longest[1]), hass)}`
-        : '';
       const footRight = rows === null ? '' : `yesterday ${totalYesterday < 60 ? 'nothing' : span(totalYesterday)}`;
 
       return `<ha-card style="display:flex; flex-direction:column; box-sizing:border-box; height:100%; padding:22px 26px 18px; color:${C.text}; font-family:${SANS};">
-        ${topRow(eyebrow(cfg.name, C), `<div style="font-family:${MONO}; font-size:12px; color:${C.dim}; white-space:nowrap;">${esc(rows === null ? '' : `${sessions} ${sessions === 1 ? 'session' : 'sessions'}`)}</div>`)}
-        <div style="display:flex; align-items:baseline; gap:14px; margin-top:12px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;">
           ${link(cfg.playback, `<div style="font-size:34px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${C.text}; white-space:nowrap;">${esc(headline)}</div>`)}
-          <div style="font-family:${MONO}; font-size:12px; color:${this._error ? C.red : C.amber}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">${esc(sub)}</div>
+          <div style="font-family:${MONO}; font-size:12px; color:${this._error ? C.red : live ? C.amber : C.dim}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;">${esc(sub)}</div>
         </div>
         <div style="position:relative; height:44px; margin-top:18px;">
           <div style="position:absolute; left:0; right:0; top:10px; height:24px; border-radius:4px; background:${C.track};"></div>
@@ -877,7 +755,7 @@
           <div>12 AM</div><div>6 AM</div><div>12 PM</div><div>6 PM</div><div>12 AM</div>
         </div>
         <div style="height:18px;"></div>
-        ${footer(esc(footLeft), footRight, C)}
+        ${footer('', footRight, C)}
       </ha-card>`;
     }
 
@@ -898,13 +776,13 @@
   window.customCards = window.customCards || [];
   window.customCards.push(
     { type: 'yoto-cards-player', name: 'Yoto Cards · Player', preview: true,
-      description: 'What the player is doing now: story, progress ring, battery, volume, headphones, sleep timer.', documentationURL: REPO },
+      description: 'What the player is doing now: story, progress ring, battery.', documentationURL: REPO },
     { type: 'yoto-cards-library', name: 'Yoto Cards · Library', preview: true,
       description: 'The Make-Your-Own playlists the sync maintains, with a fill bar against the card cap.', documentationURL: REPO },
     { type: 'yoto-cards-sync', name: 'Yoto Cards · Sync', preview: true,
-      description: 'Whether the weekly story sync is healthy: last run, next run, last story added, reason on failure.', documentationURL: REPO },
+      description: 'Whether the weekly story sync is healthy, and the last story it added.', documentationURL: REPO },
     { type: 'yoto-cards-listening', name: 'Yoto Cards · Listening', preview: true,
-      description: 'Recorder-backed strip of today’s listening sessions, with yesterday for scale.', documentationURL: REPO }
+      description: 'Recorder-backed strip of today’s listening, with yesterday for scale.', documentationURL: REPO }
   );
 
   window.__YOTO_CARDS__ = { VERSION, splitTrack, playingIntervals, ago, until, span, clock, playlistSensors };
