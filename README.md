@@ -60,7 +60,7 @@ name: Yoto Mini              # optional, the eyebrow; default: the device name
 entities:                    # optional per-entity overrides
   playback: sensor.yoto_player_playback
   position: sensor.yoto_player_position
-playlists:                   # optional; default: every sensor with a card_id attribute
+playlists:                   # optional; default: every sensor with card_id and known attributes
   - sensor.yoto_sync_bluey_book_reads
 ```
 
@@ -72,7 +72,7 @@ playlist sensors turn a card id into the playlist name shown above the story.
 
 ```yaml
 type: custom:yoto-cards-library
-playlists:                   # optional; default: every sensor with a card_id attribute
+playlists:                   # optional; default: every sensor with card_id and known attributes
   - entity: sensor.yoto_sync_bluey_book_reads
     name: Bluey              # optional
     color: blue              # optional: blue, amber, green, pink, red

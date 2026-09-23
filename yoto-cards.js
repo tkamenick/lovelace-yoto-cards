@@ -14,7 +14,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
   const REPO = 'https://github.com/tkamenick/lovelace-yoto-cards';
 
   const ACCENTS = {
@@ -165,14 +165,18 @@
       : `<span style="${extra}">${inner}</span>`;
 
   // -------------------------------------------------------------- playlists ----
-  /** The sync's per-playlist sensors: a configured list, or every sensor with a card_id attribute. */
+  /** The sync's per-playlist sensors: a configured list, or every sensor with card_id and known attributes.
+   *  (card_id alone is not enough: the bridge's favourite-card sensor names a card too.) */
   function playlistSensors(hass, configured) {
     const states = hass?.states || {};
     let ids;
     if (Array.isArray(configured) && configured.length) {
       ids = configured.map((p) => (typeof p === 'string' ? p : p?.entity)).filter(Boolean);
     } else {
-      ids = Object.keys(states).filter((id) => id.startsWith('sensor.') && states[id].attributes?.card_id !== undefined);
+      ids = Object.keys(states).filter((id) => {
+        const a = states[id].attributes || {};
+        return id.startsWith('sensor.') && a.card_id !== undefined && a.known !== undefined;
+      });
     }
     return ids.map((id, index) => {
       const e = entity(hass, id);
@@ -453,6 +457,11 @@
         ? this._config.playlists.map((p) => (typeof p === 'string' ? p : p?.entity)).filter(Boolean)
         : Object.keys(this._hass?.states || {}).filter((id) => id.startsWith('sensor.yoto_sync_'));
       return [this._config.stories, ...listed].filter(Boolean);
+    }
+
+    getGridOptions() {
+      // one row per playlist, so the height follows the list instead of clipping at a fixed row count
+      return { columns: 12, rows: 'auto', min_columns: 6 };
     }
 
     _template() {

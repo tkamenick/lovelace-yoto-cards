@@ -21,7 +21,7 @@ globalThis.customElements = { define: (name, constructor) => registry.set(name, 
 await import('../yoto-cards.js');
 
 const M = globalThis.__YOTO_CARDS__;
-assert.equal(M.VERSION, '0.2.0');
+assert.equal(M.VERSION, '0.2.1');
 assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening']);
 
 // --- helpers
@@ -135,6 +135,15 @@ for (const needle of ['37 stories', '4 h 5 m', 'Bluey Book Reads', '22 stories',
 for (const gone of ['136 min', '72 MB', 'next check', 'cap ', 'make your own']) {
   assert.ok(!html.includes(gone), `library card still shows "${gone}"`);
 }
+// the bridge's favourite-card sensor names a card too, but it is not a playlist
+const withFavourite = { ...hass, states: { ...hass.states,
+  'sensor.yoto_player_favourite_card': S('Bluey Book Reads', { title: 'Bluey Book Reads', card_id: '1mvb1', week: 23, plays: 4, chapters: [] }) } };
+assert.deepEqual(M.playlistSensors(withFavourite).map((p) => p.id), [
+  'sensor.yoto_sync_bluey_book_reads', 'sensor.yoto_sync_hey_duggee_read_alongs', 'sensor.yoto_sync_thomas_friends_80th_anniversary_storytime']);
+library.hass = withFavourite;
+assert.equal(library.shadowRoot.innerHTML.split('Bluey Book Reads').length - 1, 1, 'Bluey listed once');
+// the list sets the height: a fourth playlist must not be clipped by a fixed row count
+assert.equal(library.getGridOptions().rows, 'auto');
 
 const sync = make('yoto-cards-sync', {});
 html = sync.shadowRoot.innerHTML;

@@ -19,7 +19,7 @@ sections:
       - type: heading
         heading: Library
       - type: custom:yoto-cards-library
-        # playlists: omitted, so every sensor with a card_id attribute is listed
+        # playlists: omitted, so every sensor with card_id and known attributes (the sync's playlists) is listed
 
   - type: grid
     cards:
