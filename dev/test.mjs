@@ -21,7 +21,7 @@ globalThis.customElements = { define: (name, constructor) => registry.set(name, 
 await import('../yoto-cards.js');
 
 const M = globalThis.__YOTO_CARDS__;
-assert.equal(M.VERSION, '0.3.0');
+assert.equal(M.VERSION, '0.3.1');
 assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening', 'yoto-cards-stories']);
 
 // --- helpers
@@ -208,6 +208,8 @@ assert.ok(!html.includes('Charades'), 'three stories per card by default');
 assert.ok(!html.includes('Camping'), 'the never-played titles stay in more-info');
 assert.ok(!html.includes('Finding Nemo'), 'library cards never played are not this card\'s job');
 assert.equal(stories.getGridOptions().rows, 'auto');
+assert.equal(stories.getGridOptions().columns, 'full');
+assert.ok(html.includes('grid-template-columns:repeat(auto-fit'), 'card blocks go side by side when the card is wide');
 assert.ok(!html.includes('yoto-cards error'), html.slice(0, 300));
 // before any story has been counted this week (the day ledger is new): ranked all time, never empty
 const allTime = { ...hass, states: { ...hass.states,

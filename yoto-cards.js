@@ -15,7 +15,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.3.0';
+  const VERSION = '0.3.1';
   const REPO = 'https://github.com/tkamenick/lovelace-yoto-cards';
 
   const ACCENTS = {
@@ -813,8 +813,9 @@
     }
 
     getGridOptions() {
-      // one block per card, so the height follows the list instead of clipping at a fixed row count
-      return { columns: 12, rows: 'auto', min_columns: 6 };
+      // full width so the card blocks sit side by side in a wide section; in a column they stack,
+      // and the height follows the list either way
+      return { columns: 'full', rows: 'auto', min_columns: 6 };
     }
 
     _template() {
@@ -858,7 +859,7 @@
         ${topRow(eyebrow(cfg.name, C), pill(period, thisWeek ? C.amber : C.dim))}
         ${link(cfg.ids.favourite, `<div style="font-size:${headline.length > 18 ? 26 : 34}px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${top ? C.text : C.dim}; margin-top:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(headline)}</div>`, 'display:block;')}
         <div style="font-family:${MONO}; font-size:12px; line-height:1.4; color:${C.dim}; margin-top:6px;">${esc(sub)}</div>
-        <div style="display:flex; flex-direction:column; margin-top:18px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); column-gap:28px; margin-top:18px;">
           ${blocks
             .map(
               (b) => `${link(cfg.ids.week, `<div style="display:flex; flex-direction:column; gap:8px; padding:13px 0 14px; border-top:1px solid ${C.divider};">

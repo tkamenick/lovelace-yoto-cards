@@ -158,6 +158,7 @@ for (const [rowId, darkMode] of [['dark', true], ['light', false]]) {
   mount(rowId, darkMode, 'Library', 'yoto-cards-library', {}, 'playing');
   mount(rowId, darkMode, 'Sync', 'yoto-cards-sync', {}, 'playing');
   mount(rowId, darkMode, 'Stories', 'yoto-cards-stories', {}, 'playing', 'tall');
+  mount(`${rowId}-wide`, darkMode, 'Stories · full width', 'yoto-cards-stories', {}, 'playing', 'wide');
   mount(`${rowId}-wide`, darkMode, 'Listening today', 'yoto-cards-listening', {}, 'playing', 'wide');
 }
 mount('dark-states', true, 'Player · no card', 'yoto-cards-player', {}, 'nocard');

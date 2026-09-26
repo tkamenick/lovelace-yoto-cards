@@ -127,6 +127,8 @@ stories: 3                   # stories per card (default 3)
 entities:                    # optional overrides
   week: sensor.yoto_player_listened_this_week
   favourite: sensor.yoto_player_favourite_story
+grid_options:
+  columns: full              # in a full-width section the cards sit side by side; in a column they stack
 ```
 
 The favourite story of the week is the headline, with its card, minutes and plays under it,

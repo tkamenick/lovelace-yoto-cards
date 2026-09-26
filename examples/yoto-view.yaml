@@ -20,8 +20,6 @@ sections:
         heading: Library
       - type: custom:yoto-cards-library
         # playlists: omitted, so every sensor with card_id and known attributes (the sync's cards) is listed
-      - type: custom:yoto-cards-stories
-        player: yoto_player
 
   - type: grid
     cards:
@@ -29,6 +27,16 @@ sections:
         heading: Sync
       - type: custom:yoto-cards-sync
         container: binary_sensor.negroni_container_yoto_sync
+
+  - type: grid
+    column_span: 3
+    cards:
+      - type: heading
+        heading: Stories
+      - type: custom:yoto-cards-stories
+        player: yoto_player
+        grid_options:
+          columns: full
 
   - type: grid
     column_span: 3
