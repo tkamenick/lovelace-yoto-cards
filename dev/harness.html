@@ -14,6 +14,8 @@
   .col > :last-child { flex:1; min-height:0; }
   .col.wide { width:1056px; height:auto; }
   .col.wide > :last-child { flex:none; }
+  .col.tall { height:auto; }
+  .col.tall > :last-child { flex:none; }
   .hdg { font:500 16px/1.3 system-ui,-apple-system,sans-serif; color:var(--primary-text-color,#e1e1e1); padding:0 4px; }
   #dark-wrap {
     background:#131318; padding:24px; border-radius:14px;
@@ -100,6 +102,18 @@ function makeStates(scenario) {
     'sensor.yoto_sync_bluey_book_reads': S(22, { title: 'Bluey Book Reads', minutes: 136, mb: 71.7, card_id: '1mvb1', known: 22, missing: [] }),
     'sensor.yoto_sync_hey_duggee_read_alongs': S(7, { title: 'Hey Duggee Read-Alongs', minutes: 58, mb: 35.7, card_id: '58Hrl', known: 7, missing: [] }),
     'sensor.yoto_sync_thomas_friends_80th_anniversary_storytime': S(8, { title: 'Thomas & Friends 80th Anniversary Storytime', minutes: 51, mb: 28.3, card_id: '930JU', known: 8, missing: [] }),
+    'sensor.yoto_player_listened_this_week': S(224, { month_minutes: 242, never_played: ['Finding Nemo'], quiet: [], cards: [
+      { title: 'Bluey Book Reads', card_id: '1mvb1', today: 29, week: 224, month: 224, total: 224, plays: 150, stories: 23, unplayed: ['Camping'], chapters: [
+        { title: 'Shadowlands', today: 0, week: 69, month: 69, minutes: 69, plays: 5, last_played: iso(600) },
+        { title: 'The Pool', today: 10, week: 58, month: 58, minutes: 58, plays: 3, last_played: iso(300) },
+        { title: 'Queens', today: 0, week: 17, month: 17, minutes: 17, plays: 1, last_played: iso(86400) },
+        { title: 'Charades', today: 0, week: 13, month: 13, minutes: 13, plays: 1, last_updated: iso(86400) } ] },
+      { title: 'Thomas & Friends 80th Anniversary Storytime', card_id: '930JU', today: 0, week: 4, month: 4, total: 4, plays: 2, stories: 8, unplayed: ['Percy and the Calliope'], chapters: [
+        { title: 'Thomas and Bertie', today: 0, week: 3, month: 3, minutes: 3, plays: 1, last_played: iso(86400 * 3) } ] },
+      { title: "Hot Wheels Let's Race Story Collection", card_id: 'itveN', today: 0, week: 13, month: 13, total: 13, plays: 11, chapters: [
+        { title: 'Dino Dash', today: 0, week: 6, month: 6, minutes: 6, plays: 1, last_played: iso(86400 * 2) },
+        { title: 'Fast Food, Fast Cars!', today: 0, week: 4, month: 4, minutes: 4, plays: 1, last_played: iso(86400 * 2) } ] } ] }),
+    'sensor.yoto_player_favourite_story': S('Shadowlands', { title: 'Shadowlands', card: 'Bluey Book Reads', card_id: '1mvb1', week: 69, plays: 5 }),
   };
   return states;
 }
@@ -143,6 +157,7 @@ for (const [rowId, darkMode] of [['dark', true], ['light', false]]) {
   mount(rowId, darkMode, 'Player', 'yoto-cards-player', {}, 'playing');
   mount(rowId, darkMode, 'Library', 'yoto-cards-library', {}, 'playing');
   mount(rowId, darkMode, 'Sync', 'yoto-cards-sync', {}, 'playing');
+  mount(rowId, darkMode, 'Stories', 'yoto-cards-stories', {}, 'playing', 'tall');
   mount(`${rowId}-wide`, darkMode, 'Listening today', 'yoto-cards-listening', {}, 'playing', 'wide');
 }
 mount('dark-states', true, 'Player · no card', 'yoto-cards-player', {}, 'nocard');

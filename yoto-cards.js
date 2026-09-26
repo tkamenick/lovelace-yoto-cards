@@ -1,11 +1,12 @@
 /*! Yoto Cards — a Lovelace card set for Home Assistant
  *  https://github.com/tkamenick/lovelace-yoto-cards
  *
- *  Four cards:
+ *  Five cards:
  *    · custom:yoto-cards-player    — what the player is doing now: story, progress, battery, mode
  *    · custom:yoto-cards-library   — the Make-Your-Own playlists a sync maintains, and how full they are
  *    · custom:yoto-cards-sync      — whether the weekly story sync is healthy, and what it did last
  *    · custom:yoto-cards-listening — recorder-backed strip of today's listening, with yesterday for scale
+ *    · custom:yoto-cards-stories   — which stories get played: the favourite, each card's top stories, the never played
  *
  *  Built for the entities published by yoto-sync (https://github.com/tkamenick/yoto-sync):
  *  the yoto-mqtt bridge's "Yoto Player" device and status.py's "Yoto sync" device.
@@ -14,7 +15,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.2.1';
+  const VERSION = '0.3.0';
   const REPO = 'https://github.com/tkamenick/lovelace-yoto-cards';
 
   const ACCENTS = {
@@ -777,10 +778,121 @@
     }
   }
 
+  // ---------------------------------------------------------------- stories ----
+  /** The bridge's listening document rides along as attributes of listened_this_week: cards[]
+   *  (ranked by this week) each with chapters[] (its top stories: today, week, month, minutes
+   *  all time, plays, last_played) and, for the sync's playlists, stories and unplayed[]. */
+  const STORY_KEYS = {
+    week: 'sensor.{p}_listened_this_week',
+    favourite: 'sensor.{p}_favourite_story',
+  };
+
+  const mins = (m) => {
+    const n = Math.max(0, Math.round(finite(m) || 0));
+    return n >= 60 ? `${Math.floor(n / 60)} h ${n % 60} m` : `${n} m`;
+  };
+
+  class YotoCardsStories extends YotoCardsBase {
+    static defaults = { player: 'yoto_player', entities: {}, cards: 3, stories: 3, name: 'stories', load_fonts: true };
+    static cardSize = 6;
+
+    static getStubConfig() {
+      return { player: 'yoto_player' };
+    }
+
+    _normalizeConfig(cfg) {
+      const overrides = cfg.entities || {};
+      cfg.ids = Object.fromEntries(
+        Object.entries(STORY_KEYS).map(([key, template]) => [key, overrides[key] || template.replace('{p}', cfg.player)])
+      );
+      return cfg;
+    }
+
+    _entityIds() {
+      return Object.values(this._config.ids);
+    }
+
+    getGridOptions() {
+      // one block per card, so the height follows the list instead of clipping at a fixed row count
+      return { columns: 12, rows: 'auto', min_columns: 6 };
+    }
+
+    _template() {
+      const C = this._pal();
+      const cfg = this._config;
+      const week = entity(this._hass, cfg.ids.week);
+      const cards = Array.isArray(week.attrs.cards) ? week.attrs.cards : [];
+      // ranked by this week once a story has been counted this week; until then by all time,
+      // so the card is never empty
+      const thisWeek = cards.some((c) => (c.chapters || []).some((s) => finite(s.week) > 0));
+      const key = thisWeek ? 'week' : 'minutes';
+      const cardKey = thisWeek ? 'week' : 'total';
+      const period = thisWeek ? 'this week' : 'all time';
+      const rank = (a, b) => finite(b[key]) - finite(a[key]) || finite(b.minutes) - finite(a.minutes);
+
+      const blocks = cards
+        .map((c, i) => ({
+          title: c.title || c.card_id || '',
+          value: finite(c[cardKey]),
+          stories: (c.chapters || []).filter((s) => finite(s[key]) > 0).sort(rank).slice(0, cfg.stories),
+          unplayed: Array.isArray(c.unplayed) ? c.unplayed.length : 0,
+          known: finite(c.stories),
+          dot: C[TONES[i % TONES.length]],
+        }))
+        .filter((b) => b.stories.length)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, cfg.cards);
+      const top = blocks.length ? blocks.map((b) => ({ ...b.stories[0], card: b.title })).sort(rank)[0] : null;
+      const most = blocks.reduce((n, b) => Math.max(n, ...b.stories.map((s) => finite(s[key]))), 0);
+
+      const headline = top ? top.title : week.present ? 'Nothing yet' : 'No listening';
+      const plays = top ? finite(top.plays) : NaN;
+      const sub = top
+        ? `${top.card} · ${mins(top[key])} ${period}${plays > 0 ? ` · ${plays} ${plays === 1 ? 'play' : 'plays'}` : ''}`
+        : week.present ? 'no story has been played for 30 s yet' : `no ${cfg.ids.week}`;
+      const month = finite(week.attrs.month_minutes);
+      const footLeft = week.ok ? `${mins(week.state)} this week` : '';
+      const footRight = week.ok && Number.isFinite(month) ? `${mins(month)} in 30 days` : '';
+
+      return this._card(`
+        ${topRow(eyebrow(cfg.name, C), pill(period, thisWeek ? C.amber : C.dim))}
+        ${link(cfg.ids.favourite, `<div style="font-size:${headline.length > 18 ? 26 : 34}px; font-weight:600; line-height:1.05; letter-spacing:-0.015em; color:${top ? C.text : C.dim}; margin-top:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(headline)}</div>`, 'display:block;')}
+        <div style="font-family:${MONO}; font-size:12px; line-height:1.4; color:${C.dim}; margin-top:6px;">${esc(sub)}</div>
+        <div style="display:flex; flex-direction:column; margin-top:18px;">
+          ${blocks
+            .map(
+              (b) => `${link(cfg.ids.week, `<div style="display:flex; flex-direction:column; gap:8px; padding:13px 0 14px; border-top:1px solid ${C.divider};">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div style="width:8px; height:8px; border-radius:999px; background:${b.dot}; flex-shrink:0;"></div>
+                  <div style="flex-grow:1; min-width:0; font-size:15px; font-weight:500; color:${C.text}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(b.title)}</div>
+                  <div style="font-family:${MONO}; font-size:12px; color:${C.dim}; white-space:nowrap;">${esc(mins(b.value))}</div>
+                </div>
+                ${b.stories
+                  .map(
+                    (s) => `<div style="display:flex; align-items:center; gap:10px; padding-left:18px;">
+                    <div style="flex:0 0 44%; min-width:0; font-size:13px; color:${C.ink}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(s.title)}</div>
+                    <div style="flex-grow:1; height:4px; border-radius:2px; background:${C.track}; position:relative; overflow:hidden;">
+                      <div style="position:absolute; left:0; top:0; bottom:0; width:${most > 0 ? Math.max(1.5, (finite(s[key]) / most) * 100).toFixed(1) : 0}%; border-radius:2px; background:${b.dot};"></div>
+                    </div>
+                    <div style="flex:0 0 40px; font-family:${MONO}; font-size:11px; color:${C.dim}; white-space:nowrap; text-align:right;">${esc(mins(s[key]))}</div>
+                  </div>`
+                  )
+                  .join('')}
+                ${b.unplayed ? `<div style="padding-left:18px; font-family:${MONO}; font-size:11px; color:${C.dim};">${esc(`${b.unplayed}${Number.isFinite(b.known) ? ` of ${b.known}` : ''} never played`)}</div>` : ''}
+              </div>`, 'display:block;')}`
+            )
+            .join('')}
+        </div>
+        ${footer(esc(footLeft), footRight, C)}
+      `);
+    }
+  }
+
   customElements.define('yoto-cards-player', YotoCardsPlayer);
   customElements.define('yoto-cards-library', YotoCardsLibrary);
   customElements.define('yoto-cards-sync', YotoCardsSync);
   customElements.define('yoto-cards-listening', YotoCardsListening);
+  customElements.define('yoto-cards-stories', YotoCardsStories);
 
   window.customCards = window.customCards || [];
   window.customCards.push(
@@ -791,10 +903,12 @@
     { type: 'yoto-cards-sync', name: 'Yoto Cards · Sync', preview: true,
       description: 'Whether the weekly story sync is healthy, and the last story it added.', documentationURL: REPO },
     { type: 'yoto-cards-listening', name: 'Yoto Cards · Listening', preview: true,
-      description: 'Recorder-backed strip of today’s listening, with yesterday for scale.', documentationURL: REPO }
+      description: 'Recorder-backed strip of today’s listening, with yesterday for scale.', documentationURL: REPO },
+    { type: 'yoto-cards-stories', name: 'Yoto Cards · Stories', preview: true,
+      description: 'Which stories get played: the favourite this week, each card’s top stories, the ones never played.', documentationURL: REPO }
   );
 
-  window.__YOTO_CARDS__ = { VERSION, splitTrack, playingIntervals, ago, until, span, clock, playlistSensors };
+  window.__YOTO_CARDS__ = { VERSION, splitTrack, playingIntervals, ago, until, span, clock, mins, playlistSensors };
 
   console.info(
     `%c YOTO-CARDS %c v${VERSION} `,

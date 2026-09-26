@@ -1,7 +1,8 @@
 # Yoto Cards
 
-Four custom Lovelace cards for Home Assistant that show what a Yoto player is doing, what is on
-its Make-Your-Own cards, and whether the story sync that fills them is healthy. They share the
+Five custom Lovelace cards for Home Assistant that show what a Yoto player is doing, what is on
+its Make-Your-Own cards, which stories actually get played, and whether the story sync that
+fills them is healthy. They share the
 visual language of [Sun Cards](https://github.com/tkamenick/lovelace-sun-cards) and
 [Air Quality Cards](https://github.com/tkamenick/lovelace-air-quality-cards): the same
 typography, theme-aware surfaces, restrained accents, and one strong visual hierarchy per card.
@@ -18,8 +19,9 @@ The cards adapt their accents for light themes:
 | **Library** | `custom:yoto-cards-library` | Which playlists the sync maintains, how many stories each holds, and how close each is to Yoto's 100-track / 500 MB card cap |
 | **Sync** | `custom:yoto-cards-sync` | Is the weekly sync healthy (with the reason when not), when it ran and runs next, and the last story it added |
 | **Listening** | `custom:yoto-cards-listening` | When the player was playing today and for how long, with yesterday for scale (recorder-backed) |
+| **Stories** | `custom:yoto-cards-stories` | Which stories get played: this week's favourite, each card's top stories with how long, and how many on each card have never been played |
 
-All four are dependency-free and bundled in one file. Each card shows one thing large and one
+All five are dependency-free and bundled in one file. Each card shows one thing large and one
 thing small; the rest is a click away, since clicking a reading opens Home Assistant's normal
 more-info dialog.
 
@@ -34,8 +36,12 @@ publishes over MQTT discovery:
   `_card_inserted`, `_sleep_timer`.
 - **Yoto sync** device from `status.py`: `binary_sensor.yoto_sync_problem` (attributes
   `reason`, `status`), `sensor.yoto_sync_status`, `_last_run`, `_next_run`, `_last_added`,
-  `_stories`, and one sensor per playlist whose attributes carry `title`, `minutes`, `mb`,
-  `card_id`, `known` and `missing`.
+  `_stories`, and one sensor per card whose attributes carry `title`, `minutes`, `mb`,
+  `card_id`, `known` and `missing` (a playlist that spans several cards has one each).
+- The bridge's listening counts on the player device: `sensor.yoto_player_listened_this_week`,
+  whose `cards` attribute holds every card ranked by the last 7 days with its top stories
+  (`chapters`: `week`, `minutes` all time, `plays`, `last_played`) and, for the sync's cards,
+  `stories` and `unplayed`; and `sensor.yoto_player_favourite_story`.
 
 Any other source works as long as the entity ids are passed in (below). A missing or
 unavailable entity produces a clean fallback ("No card", "Offline", "—"), never a broken card.
@@ -110,6 +116,25 @@ grid_options:
 It reads `history/history_during_period` for the playback sensor from yesterday's midnight
 to now, so the sensor has to be recorded. Gaps under a minute inside a session are treated as
 one session.
+
+### Stories
+
+```yaml
+type: custom:yoto-cards-stories
+player: yoto_player          # sensor.<player>_listened_this_week and _favourite_story
+cards: 3                     # how many cards to list, most listened first (default 3)
+stories: 3                   # stories per card (default 3)
+entities:                    # optional overrides
+  week: sensor.yoto_player_listened_this_week
+  favourite: sensor.yoto_player_favourite_story
+```
+
+The favourite story of the week is the headline, with its card, minutes and plays under it,
+then each card's top stories as bars scaled to the longest one shown and a "never played" count
+for cards whose story list the sync knows. Until a story has been counted this week (the
+bridge keeps per-story days from 2026-09-26) it ranks by all-time minutes and says so in the
+pill. Clicking a card block opens the week sensor's more-info, where the full ranked list and
+the never-played titles are.
 
 See [`examples/yoto-view.yaml`](examples/yoto-view.yaml) for a complete three-column sections
 dashboard.

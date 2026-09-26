@@ -19,7 +19,9 @@ sections:
       - type: heading
         heading: Library
       - type: custom:yoto-cards-library
-        # playlists: omitted, so every sensor with card_id and known attributes (the sync's playlists) is listed
+        # playlists: omitted, so every sensor with card_id and known attributes (the sync's cards) is listed
+      - type: custom:yoto-cards-stories
+        player: yoto_player
 
   - type: grid
     cards:

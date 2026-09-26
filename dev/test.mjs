@@ -21,8 +21,8 @@ globalThis.customElements = { define: (name, constructor) => registry.set(name, 
 await import('../yoto-cards.js');
 
 const M = globalThis.__YOTO_CARDS__;
-assert.equal(M.VERSION, '0.2.1');
-assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening']);
+assert.equal(M.VERSION, '0.3.0');
+assert.deepEqual([...registry.keys()], ['yoto-cards-player', 'yoto-cards-library', 'yoto-cards-sync', 'yoto-cards-listening', 'yoto-cards-stories']);
 
 // --- helpers
 assert.deepEqual(M.splitTrack('Queens (read by Helena Bonham Carter)', 'Queens'), ['Queens', 'read by Helena Bonham Carter']);
@@ -32,6 +32,9 @@ assert.equal(M.clock(139), '2:19');
 assert.equal(M.clock(581), '9:41');
 assert.equal(M.span(4320), '1 h 12 m');
 assert.equal(M.span(2280), '38 m');
+assert.equal(M.mins(69), '1 h 9 m');
+assert.equal(M.mins(58), '58 m');
+assert.equal(M.mins('unknown'), '0 m');
 const now = Date.parse('2026-09-22T04:30:00Z');
 assert.equal(M.ago(new Date(now - 12000), now), '12 s ago');
 assert.equal(M.ago(new Date(now - 7200000), now), '2 h ago');
@@ -56,6 +59,20 @@ assert.deepEqual(M.playingIntervals([], 0, 1000), []);
 // --- a hass snapshot with the real entity ids (values from 2026-09-21)
 const iso = '2026-09-22T04:01:48+00:00';
 const S = (state, attributes = {}) => ({ state, attributes, last_updated: iso, last_changed: iso });
+// the bridge's listening document (listening.py summary), as the attributes of listened_this_week
+const LISTENING = {
+  month_minutes: 242, never_played: ['Finding Nemo'], quiet: [],
+  cards: [
+    { title: 'Bluey Book Reads', card_id: '1mvb1', today: 29, week: 224, month: 224, total: 224, plays: 150,
+      stories: 23, unplayed: ['Camping'], chapters: [
+        { title: 'Shadowlands', today: 0, week: 69, month: 69, minutes: 69, plays: 5, last_played: iso },
+        { title: 'The Pool', today: 10, week: 58, month: 58, minutes: 58, plays: 3, last_played: iso },
+        { title: 'Queens', today: 0, week: 17, month: 17, minutes: 17, plays: 1, last_played: iso },
+        { title: 'Charades', today: 0, week: 13, month: 13, minutes: 13, plays: 1, last_played: iso } ] },
+    { title: "Hot Wheels Let's Race Story Collection", card_id: 'itveN', today: 0, week: 13, month: 13, total: 13, plays: 11,
+      chapters: [{ title: 'Dino Dash', today: 0, week: 6, month: 6, minutes: 6, plays: 1, last_played: iso }] },
+  ],
+};
 const hass = {
   themes: { darkMode: true },
   locale: { language: 'en-US', time_format: '12' },
@@ -86,6 +103,8 @@ const hass = {
     'sensor.yoto_sync_bluey_book_reads': S('22', { title: 'Bluey Book Reads', minutes: 136, mb: 71.7, card_id: '1mvb1', known: 22, missing: [] }),
     'sensor.yoto_sync_hey_duggee_read_alongs': S('7', { title: 'Hey Duggee Read-Alongs', minutes: 58, mb: 35.7, card_id: '58Hrl', known: 7, missing: [] }),
     'sensor.yoto_sync_thomas_friends_80th_anniversary_storytime': S('8', { title: 'Thomas & Friends 80th Anniversary Storytime', minutes: 51, mb: 28.3, card_id: '930JU', known: 8, missing: [] }),
+    'sensor.yoto_player_listened_this_week': S('224', LISTENING),
+    'sensor.yoto_player_favourite_story': S('Shadowlands', { title: 'Shadowlands', card: 'Bluey Book Reads', card_id: '1mvb1', week: 69, plays: 5 }),
   },
 };
 
@@ -177,5 +196,36 @@ for (const gone of ['session', 'longest', '24h']) {
   assert.ok(!html.includes(gone), `listening card still shows "${gone}"`);
 }
 assert.ok(!html.includes('yoto-cards error'));
+
+// stories: the favourite large, each card's top stories, never played as a count
+const stories = make('yoto-cards-stories', {});
+html = stories.shadowRoot.innerHTML;
+for (const needle of ['Shadowlands', 'Bluey Book Reads · 1 h 9 m this week · 5 plays', '>this week<', 'The Pool', 'Queens',
+  '1 of 23 never played', 'Dino Dash', '3 h 44 m this week', '4 h 2 m in 30 days', 'width:100.0%', 'width:84.1%']) {
+  assert.ok(html.includes(needle), `stories card lacks "${needle}"`);
+}
+assert.ok(!html.includes('Charades'), 'three stories per card by default');
+assert.ok(!html.includes('Camping'), 'the never-played titles stay in more-info');
+assert.ok(!html.includes('Finding Nemo'), 'library cards never played are not this card\'s job');
+assert.equal(stories.getGridOptions().rows, 'auto');
+assert.ok(!html.includes('yoto-cards error'), html.slice(0, 300));
+// before any story has been counted this week (the day ledger is new): ranked all time, never empty
+const allTime = { ...hass, states: { ...hass.states,
+  'sensor.yoto_player_listened_this_week': S('224', { ...LISTENING,
+    cards: LISTENING.cards.map((c) => ({ ...c, chapters: c.chapters.map((s) => ({ ...s, today: 0, week: 0 })) })) }),
+  'sensor.yoto_player_favourite_story': S('nothing this week', {}) } };
+stories.hass = allTime;
+html = stories.shadowRoot.innerHTML;
+assert.ok(html.includes('>all time<') && html.includes('Shadowlands') && html.includes('1 h 9 m all time'), 'all-time fallback');
+// one story per card, one card
+stories.setConfig({ cards: 1, stories: 1 });
+stories.hass = hass;
+html = stories.shadowRoot.innerHTML;
+assert.ok(html.includes('Shadowlands') && !html.includes('The Pool') && !html.includes('Dino Dash'), 'cards/stories limits');
+// the bridge is not publishing
+const noListening = { ...hass, states: Object.fromEntries(Object.entries(hass.states).filter(([k]) => !k.includes('listened') && !k.includes('favourite'))) };
+stories.hass = noListening;
+html = stories.shadowRoot.innerHTML;
+assert.ok(html.includes('No listening') && html.includes('no sensor.yoto_player_listened_this_week'), 'missing sensors');
 
 console.log('yoto-cards: all checks passed');
